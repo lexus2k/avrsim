@@ -17,6 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "font5x7.h"
 #include "font6x8.h"
 #include "ssd1306.h"
 
@@ -111,7 +112,29 @@ void ssd1306_clearScreen(){
   }
 }
 
- 
+void ssd1306_charF5x7(uint8_t x, uint8_t y, const char ch[]){
+  uint8_t c,i,j=0;
+  while(ch[j] != '\0')
+    {
+      c = ch[j] - 32;
+      if(x>126)
+        {
+          x=0;
+          y++;
+        }
+      ssd1306_setPos(x,y);
+      ssd1306_i2cDataStart();
+      for(i=0;i<5;i++)
+        {
+          ssd1306_i2cSendByte(pgm_read_byte(&ssd1306xled_font5x7[c*5+i]));
+        }
+      ssd1306_i2cStop();
+      x += 5;
+      j++;
+    }
+}
+
+
 void ssd1306_charF6x8(uint8_t x, uint8_t y, const char ch[]){
   uint8_t c,i,j=0;
   while(ch[j] != '\0')
@@ -166,7 +189,7 @@ void ssd1306_drawBitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_
     }
 }
 
-void ssd1306_drawSprite(uint8_t x, uint8_t y, const uint8_t *sprite)
+void ssd1306_drawSpriteData(uint8_t x, uint8_t y, const uint8_t *sprite)
 {
    uint8_t i;
    ssd1306_setPos(x,y);
@@ -176,6 +199,93 @@ void ssd1306_drawSprite(uint8_t x, uint8_t y, const uint8_t *sprite)
        ssd1306_i2cSendByte(pgm_read_byte(&sprite[i]));
    }
    ssd1306_i2cStop();
+}
+
+
+void ssd1306_drawSprite(SPRITE *sprite)
+{
+    uint8_t posy = sprite->y >> 3;
+    uint8_t offsety = sprite->y & 0x7;
+    ssd1306_setPos(sprite->x, posy);
+    ssd1306_i2cDataStart();
+    for (uint8_t i=0; i < sprite->w; i++)
+    {
+        ssd1306_i2cSendByte( pgm_read_byte( &sprite->data[i] ) << offsety );
+    }
+    ssd1306_i2cStop();
+    if (offsety)
+    {
+        ssd1306_setPos(sprite->x, posy + 1);
+        ssd1306_i2cDataStart();
+        for (uint8_t i=0; i < sprite->w; i++)
+        {
+            ssd1306_i2cSendByte( pgm_read_byte( &sprite->data[i] ) >> (8 - offsety) );
+        }
+    }
+    ssd1306_i2cStop();
+    sprite->lx = sprite->x;
+    sprite->ly = sprite->y;
+}
+
+
+void ssd1306_eraseSprite(SPRITE *sprite)
+{
+    uint8_t posy = sprite->y >> 3;
+    uint8_t offsety = sprite->y & 0x7;
+    ssd1306_setPos(sprite->x, posy);
+    ssd1306_i2cDataStart();
+    for (uint8_t i=0; i < sprite->w; i++)
+    {
+       ssd1306_i2cSendByte( B00000000 );
+    }
+    ssd1306_i2cStop();
+    if (offsety)
+    {
+        ssd1306_setPos(sprite->x, posy + 1);
+        ssd1306_i2cDataStart();
+        for (uint8_t i=0; i < sprite->w; i++)
+        {
+           ssd1306_i2cSendByte( B00000000 );
+        }
+    }
+    ssd1306_i2cStop();
+}
+
+
+void ssd1306_eraseTrace(SPRITE *sprite)
+{
+    SSD1306_RECT oldRect = ssd1306_rectFromSprite(sprite->lx, sprite->ly, sprite->w);
+    SSD1306_RECT newRect = ssd1306_rectFromSprite(sprite->x, sprite->y, sprite->w);
+    if (oldRect.top < newRect.top)
+    {
+        for(uint8_t y = oldRect.top >> 3; y < newRect.top >> 3; y++)
+        {
+            ssd1306_setPos(oldRect.left, y);
+            ssd1306_i2cDataStart();
+            for(uint8_t x = oldRect.left; x <= oldRect.right; x++)
+            {
+                ssd1306_i2cSendByte( B00000000 );
+            }
+            ssd1306_i2cStop();
+        }
+    }
+}
+
+
+SSD1306_RECT ssd1306_rectFromSprite(uint8_t x, uint8_t y, uint8_t w)
+{
+    return { x, (uint8_t)(y & 0xF8), (uint8_t)(x + w - 1), (uint8_t)((y + 7) & 0xF8) };
+}
+
+SSD1306_RECT ssd1306_rect(SPRITE * sprite)
+{
+    return { 0, 0, 0, 0 };
+}
+
+
+SPRITE       ssd1306_createSprite(uint8_t x, uint8_t y, uint8_t w, const uint8_t *data)
+{
+    return {x,y,w,x,y,data};
 }
 
 

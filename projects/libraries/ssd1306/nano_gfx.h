@@ -25,7 +25,7 @@
 class NanoCanvas
 {
 public:
-    /** 
+    /**
      * width can be of any value
      * height should be divided by 8
      */
@@ -78,7 +78,6 @@ private:
     uint8_t m_h;
     uint8_t *m_bytes;
 };
-
 
 #endif
 

@@ -55,14 +55,43 @@
 #define SSD1306_SWITCHCAPVCC   0x2
 #define SSD1306_NOP            0xE3
 
+typedef struct
+{
+    uint8_t left;
+    uint8_t top;
+    uint8_t right;
+    uint8_t bottom;
+} SSD1306_RECT;
+
+
+typedef struct
+{
+    uint8_t x;
+    uint8_t y;
+    uint8_t w;
+    uint8_t lx;
+    uint8_t ly;
+    const uint8_t * data;
+} SPRITE;
+
+
 void         ssd1306_init();
 void         ssd1306_setPos(uint8_t x, uint8_t y);
 void         ssd1306_fillScreen(uint8_t fill_Data);
 void         ssd1306_clearScreen();
+void         ssd1306_charF5x7(uint8_t x, uint8_t y, const char ch[]);
 void         ssd1306_charF6x8(uint8_t x, uint8_t y, const char ch[]);
 void         ssd1306_drawCanvas(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *buf);
 void         ssd1306_drawBitmap(uint8_t x, uint8_t y, uint8_t w, uint8_t h, const uint8_t *buf);
-void         ssd1306_drawSprite(uint8_t x, uint8_t y, const uint8_t *sprite);
- 
+void         ssd1306_drawSpriteData(uint8_t x, uint8_t y, const uint8_t *sprite);
+
+// ----------------------------------------------------------------------------
+void         ssd1306_drawSprite(SPRITE *sprite);
+void         ssd1306_eraseSprite(SPRITE *sprite);
+void         ssd1306_eraseTrace(SPRITE *sprite);
+SPRITE       ssd1306_createSprite(uint8_t x, uint8_t y, uint8_t w, const uint8_t *data);
+SSD1306_RECT ssd1306_rect(SPRITE * sprite);
+SSD1306_RECT ssd1306_rectFromSprite(uint8_t x, uint8_t y, uint8_t w);
+
 // ----------------------------------------------------------------------------
 #endif // _SSD1306_H_

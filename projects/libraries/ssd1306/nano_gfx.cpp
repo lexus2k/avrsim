@@ -19,10 +19,10 @@
 
 #include "nano_gfx.h"
 
-#define YADDR(y) (((y) >> 3) * m_w)
-#define BADDR(b) ((b) * m_w)
+#define YADDR(y) (((y) >> 3) << m_p)
+#define BADDR(b) ((b) << m_p)
     /**
-     *  
+     *
      */
     void NanoCanvas::drawPixel(uint8_t x, uint8_t y)
     {
@@ -48,7 +48,6 @@
         if (y2 >= m_h) y2 = m_h - 1;
         for(uint8_t y = y1; y<=y2; y++)
             m_bytes[YADDR(y) + x1] |= (1 << (y & 0x7));
-      
     };
 
     void NanoCanvas::drawRect(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2)
@@ -98,7 +97,6 @@
            m_bytes[i] = 0;
     };
 
-    
     void NanoCanvas::char_f6x8(uint8_t x, uint8_t y, const char ch[])
     {
         uint8_t c, i, j;

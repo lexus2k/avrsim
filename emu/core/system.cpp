@@ -65,6 +65,10 @@ long random(long v)
     return rand() % v;
 }
 
+void randomSeed(unsigned long v)
+{
+}
+
 long random(long min, long max)
 {
     return rand() % (max - min + 1) + min;

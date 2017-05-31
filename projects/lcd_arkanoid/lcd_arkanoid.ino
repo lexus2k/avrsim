@@ -1,38 +1,34 @@
-/* 2014
- *
- * Breakout game by Ilya Titov. Find building instructions on
- * http://webboggles.com/ The code that does not fall under the licenses of
- * sources listed below can be used non commercially with attribution.
- *
- * If you have problems uploading this sketch, this is probably due to sketch
- * size - you need to update ld.exe in arduino\hardware\tools\avr\avr\bin
- * https://github.com/TCWORLD/ATTinyCore/tree/master/PCREL%20Patch%20for%20GCC
- *
- * This sketch is using the screen control and font functions written by Neven
- * Boyanov for the http://tinusaur.wordpress.com/ project Source code and font
- * files available at: https://bitbucket.org/tinusaur/ssd1306xled
- *
- * Sleep code is based on this blog post by Matthew Little:
- * http://www.re-innovation.co.uk/web12/index.php/en/blog-75/306-sleep-modes-on-attiny85
- *
- */
-/* 2016
- *
- * Updated by pakozm (Paco Zamora Martinez):
- *
- *   - code refactoring
+/*
+    Copyright (C) 2016-2017 Alexey Dynda
+
+    This file is part of AVR Simulator project.
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+/**
+ * Original game was developed by Ilya Titov in 2014. This version is hardly
+ * reworked and based on ssd1306 library. The game uses font written by Neven
+ * Boyanov.
  *
  *   Attiny85 PINS
  *             ____
  *   RESET   -|_|  |- 3V
- *   SCL (3) -|    |- (2) RIGHT
+ *   SCL (3) -|    |- (2) LEFT
  *   SDA (4) -|    |- (1) BUZZER
- *   GND     -|____|- (0) LEFT
+ *   GND     -|____|- (0) RIGHT
  */
-/* 2016
- * Modified by Alexey Dynda.
- * New SSD1306 library is linked.
- */
+
 #include <avr/eeprom.h>
 #include "font6x8.h"
 #include "ssd1306.h"
@@ -40,336 +36,670 @@
 #include <avr/sleep.h>
 #include <avr/interrupt.h> // needed for the additional interrupt
 
-//#define min(a,b) ((a)<(b)) ? (a) : (b)
-//#define max(a,b) ((a)>(b)) ? (a) : (b)
+#include "levels.h"
+#include "blocks.h"
+#include "sprites.h"
+#include "arkanoid.h"
+
+typedef struct
+{
+    SPRITE  sprite;
+    uint8_t type;
+    uint8_t extra;
+} GameObject;
+
 
 uint16_t *EEPROM_ADDR = (uint16_t*)0;
 
-#define LEFT_BTN    0
+#define LEFT_BTN    2
 #define BUZZER      1
-#define RIGHT_BTN   2
+#define RIGHT_BTN   0
 
-const int SCREEN_WIDTH   = 128;
-const int SCREEN_HEIGHT  = 64;
-const int BALL_INITIAL_X = SCREEN_WIDTH/2;
-const int BALL_INITIAL_Y = 50;
-const int PLATFORM_HEIGHT = 10;
+
+const int LEFT_EDGE         = 0;
+const int RIGHT_EDGE        = (128 - 14);
+const int SCREEN_WIDTH      = (128 - 16);
+const int SCREEN_HEIGHT     = 64;
+const int BLOCK_WIDTH       = 16;
+const int PLATFORM_HEIGHT   = 10;
 const int INITIAL_PLATFORM_WIDTH = 16;
-const int INITIAL_HDIR = -1;
-const int INITIAL_VDIR = -1;
+const int INITIAL_H_SPEED   = -1;
+const int INITIAL_V_SPEED   = -4;
+const int PLATFORM_SPEED    = 2;
+const int MAX_GAME_OBJECTS  = 4;
+const int PLATFORM_ROW      = 7;
 
-const int NUM_ROWS       = 8;
-const int BLOCKS_PER_ROW = 16;
-const int BLOCK_NUM_ROWS = 3;
-const int PLAYER_ROW     = NUM_ROWS - 1;
-const int TOTAL_BLOCKS   = BLOCK_NUM_ROWS * BLOCKS_PER_ROW;
+const uint8_t SPEED_SHIFT  = 2;
 
-volatile byte player = 0; //0 to SCREEN_WIDTH-platformWidth  - this is the position of the bounce platform
-byte platformWidth = INITIAL_PLATFORM_WIDTH;
-byte ballx = BALL_INITIAL_X; // coordinate of the ball
-byte bally = BALL_INITIAL_Y; // coordinate of the ball
-int vdir = -1; // vertical direction and step  distance
-int hdir = -1; // horizontal direction and step distance
-unsigned long lastFrame = 0; // time since the screen was updated last
-boolean rows[BLOCK_NUM_ROWS][BLOCKS_PER_ROW]; // on-off array of blocks
-uint16_t score = 0; // score - counts the number of blocks hit and resets the array
-               // above when devisible by TOTAL_BLOCKS
+uint8_t    platformPos;       // platform position
+bool       updateStatusPanel; // Set to true if status panel update is required
+int        platformWidth;
+int        ballx;
+int        bally;
+int        vSpeed;
+int        hSpeed;
+uint8_t    hearts;
+uint32_t   lastDrawTimestamp;
+uint8_t    gameField[BLOCK_NUM_ROWS][MAX_BLOCKS_PER_ROW];
+GameObject objects[MAX_GAME_OBJECTS];
+uint16_t   score;
+uint8_t    level = 1;
+uint8_t    blocksLeft = 0;
+uint8_t    platformPower;
+
 
 void resetGame();
+void nextLevel();
 void drawPlatform();
 void beep(int bCount,int bDelay);
-void platformStep();
-void drawBall();
-void ballStep();
-void frameStep();
-void clearAreaBelowBlocks();
+void movePlatform();
+bool moveObjects();
+void drawBall(uint8_t lastx, uint8_t lasty);
+bool moveBall();
 void drawBlocks();
+void drawObjects();
 void system_sleep();
 void resetBlocks();
+void drawFieldEdges();
+void drawStatusPanel();
+void onKill();
 
 ISR(PCINT0_vect)
 {
-    if (player >0) 
-    {
-        player--;
-    }
     return;
 }
 
-void playerInc(){ // PB2 pin button interrupt
-  if (player<SCREEN_WIDTH-platformWidth){player++;}
+void playerInc()
+{
+   // PB2 pin button interrupt
 }
 
 void setup()
 {
-  DDRB |= 0b00011010;  	// set PB1 as output (for the speaker)
+    randomSeed(analogRead(0));
+    DDRB |= 0b00011010;         // set PB1 as output (for the speaker)
 #if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny85__)
-  PCMSK = 0b00000001;	// pin change mask: listen to portb bit 1
-  GIMSK |= 0b00100000;	// enable PCINT interrupt
-  sei();		// enable all interrupts
-  attachInterrupt(0,playerInc,CHANGE);
-#else
+    PCMSK = 0b00000001;	        // pin change mask: listen to portb bit 1
+    GIMSK |= 0b00100000;        // enable PCINT interrupt
+    sei();                      // enable all interrupts
+    attachInterrupt(0,playerInc,CHANGE);
 #endif
-  resetGame();
+    resetGame();
 }
 
 void loop() {
-  // frame actions and screen update
-  if (lastFrame+10 < millis()) {
+  if ( millis() - lastDrawTimestamp > 30 )
+  {
+    uint8_t lastx = (ballx >> SPEED_SHIFT);
+    uint8_t lasty = (bally >> SPEED_SHIFT);
     // continue moving after the interrupt
-    platformStep();
-    
+    movePlatform();
     // bounce off the sides of the screen
-    ballStep();
-
-    // frame actions
-    frameStep();
-
-    // update whats on the screen
-    noInterrupts();
-    drawBlocks();
-    clearAreaBelowBlocks();
-    drawBall();
-    drawPlatform();
-    interrupts();
-
-    lastFrame = millis();
-    
+    if (moveBall())
+    {
+        if (moveObjects())
+        {
+           // update whats on the screen
+           noInterrupts();
+           drawPlatform();
+           drawBall(lastx, lasty);
+           drawObjects();
+           if (updateStatusPanel)
+           {
+               updateStatusPanel = false;
+               drawStatusPanel();
+           }
+           interrupts();
+           lastDrawTimestamp += 30;
+        }
+     }
   }
 }
 
-uint8_t canvas_buffer[30 * 24/8];
-NanoCanvas canvas(30, 24, canvas_buffer);
+//uint8_t canvas_buffer[32 * 24/8];
+//NanoCanvas canvas(32, 24, canvas_buffer);
 
-#include "sova.h"
+void drawStatusPanel()
+{
+    for(uint8_t i=0; i<min(hearts,3); i++)
+    {
+        SPRITE heart = ssd1306_createSprite( RIGHT_EDGE + 4, 16 + (i<<3), 8, heartSprite );
+        ssd1306_drawSprite( &heart );
+    }
+    char temp[6] = {'0',0,0,0,0,0};
+    utoa(score,temp + (score<10?1:0),10);
+    temp[2] = '\0';
+    ssd1306_charF6x8(RIGHT_EDGE + 1, 1, temp);
+    SPRITE power = ssd1306_createSprite( RIGHT_EDGE + 4, 40, 8, powerSprite );
+    if (platformPower)
+        ssd1306_drawSprite( &power );
+    else
+        ssd1306_eraseSprite( &power );
+}
 
-void resetGame(){
-  lastFrame = millis();
-  delay(40);
+void drawIntro()
+{
   noInterrupts();
   ssd1306_init();
   ssd1306_fillScreen(0x00);
-  canvas.char_f6x8(0,4, "BREAK");
-  canvas.char_f6x8(6,12, "OUT" );
-  ssd1306_drawBitmap(0, 0, 128, 64, Sova);
-  ssd1306_drawCanvas(0, 0, canvas.width(), canvas.height(), canvas.buffer());
-  
+//  canvas.char_f6x8(0,4, "BREAK");
+//  canvas.char_f6x8(6,12, "OUT" );
+  ssd1306_drawBitmap(16, 2, 96, 24, arkanoid_2);
+//  ssd1306_drawCanvas(0, 0, canvas.width(), canvas.height(), canvas.buffer());
+  ssd1306_charF6x8(40, 5, "BREAKOUT");
+  interrupts();
   beep(200,600);
   beep(300,200);
   beep(400,300);
-  interrupts();
-  delay(3000);
+}
+
+void drawStartScreen()
+{
   noInterrupts();
-  resetBlocks();
-  platformWidth = INITIAL_PLATFORM_WIDTH;
-  ballx = BALL_INITIAL_X;
-  bally = BALL_INITIAL_Y;
-  hdir = INITIAL_HDIR;
-  vdir = INITIAL_VDIR;
-  score = 0;
-  player = random(0,SCREEN_WIDTH-platformWidth);
-  ballx = player+(platformWidth>>1);
+  ssd1306_fillScreen(0x00);
+  drawBlocks();
+  drawFieldEdges();
+  drawStatusPanel();
   interrupts();
 }
+
+
+void startLevel()
+{
+    resetBlocks();
+    hSpeed = INITIAL_H_SPEED;
+    vSpeed = INITIAL_V_SPEED;
+    platformPos = random(0, (RIGHT_EDGE - LEFT_EDGE - 1 - platformWidth));
+    ballx = (platformPos+(platformWidth>>1)) << SPEED_SHIFT;
+    bally = (SCREEN_HEIGHT - PLATFORM_HEIGHT) << SPEED_SHIFT;
+    for(uint8_t i=0; i<MAX_GAME_OBJECTS; i++)
+    {
+        objects[i].type = 0;
+    }
+    drawStartScreen();
+    lastDrawTimestamp = millis();
+}
+
+void resetGame()
+{
+    score = 0;
+    platformWidth = INITIAL_PLATFORM_WIDTH;
+    platformPower = 0;
+    hearts = 2;
+    delay(40);
+    drawIntro();
+    delay(3000);
+    startLevel();
+}
+
+
+/* Draws and clears platform */
+void drawPlatform()
+{
+  uint8_t pos = (platformPos < PLATFORM_SPEED) ? 0: (platformPos - PLATFORM_SPEED);
+  ssd1306_setPos( pos + LEFT_EDGE + 1, PLATFORM_ROW );
+  ssd1306_i2cDataStart();
+  while (pos < platformPos)
+  {
+     ssd1306_i2cSendByte(B00000000);
+     pos++;
+  }
+  ssd1306_i2cSendByte(B00001110);
+  pos++;
+  while (pos < platformPos + platformWidth - 1)
+  {
+    ssd1306_i2cSendByte(B00000111);
+    pos++;
+  }
+  ssd1306_i2cSendByte(B00001110);
+  while (pos < platformPos + platformWidth + PLATFORM_SPEED - 1)
+  {
+     if (pos >= (RIGHT_EDGE - LEFT_EDGE - 2))
+     {
+        break;
+     }
+     ssd1306_i2cSendByte(B00000000);
+     pos++;
+  }
+  ssd1306_i2cStop();
+}
+
+
+void sendBlock(uint8_t fill)
+{
+  const uint8_t * ptr = &blockImages[fill][0];
+  for (uint8_t cnt=16; cnt>0; cnt--)
+  {
+      ssd1306_i2cSendByte( pgm_read_byte(ptr) );
+      ptr++;
+  }
+}
+
+
+void drawBlock(uint8_t x, uint8_t y)
+{
+    ssd1306_setPos(LEFT_EDGE + 1 + (x << 4),y);
+    ssd1306_i2cDataStart();
+    sendBlock(gameField[y][x]);
+    ssd1306_i2cStop();
+}
+
+
+void resetBlocks()
+{
+  if (level > MAX_LEVELS)
+  {
+     level = MAX_LEVELS;
+  }
+  blocksLeft = 0;
+  for (byte i =0; i<BLOCKS_PER_ROW;i++)
+  {
+    for (int j=0; j<BLOCK_NUM_ROWS; ++j)
+    {
+      gameField[j][i] = pgm_read_byte( &levels[level-1][j][i] );
+      if ((gameField[j][i]) && (gameField[j][i] != BLOCK_STRONG))
+      {
+        blocksLeft++;
+      }
+    }
+  }
+}
+
+void drawBlocks()
+{
+  for (uint8_t r=0; r<BLOCK_NUM_ROWS; ++r)
+  {
+    ssd1306_setPos(LEFT_EDGE + 1,r);
+    ssd1306_i2cDataStart();
+    for (uint8_t bl = 0; bl <BLOCKS_PER_ROW; bl++)
+    {
+      sendBlock(gameField[r][bl]);
+    }
+    ssd1306_i2cStop();
+  }
+}
+
+void drawFieldEdges()
+{
+    for (uint8_t i=0; i<8; i++)
+    {
+        ssd1306_setPos(LEFT_EDGE, i);
+        ssd1306_i2cDataStart();
+        ssd1306_i2cSendByte( B01010101 );
+        ssd1306_i2cStop();
+        ssd1306_setPos(RIGHT_EDGE, i);
+        ssd1306_i2cDataStart();
+        ssd1306_i2cSendByte( B01010101 );
+        ssd1306_i2cStop();
+    }
+}
+
+
+void drawBall(uint8_t lastx, uint8_t lasty)
+{
+  uint8_t newx = ballx >> SPEED_SHIFT;
+  uint8_t newy = bally >> SPEED_SHIFT;
+  ssd1306_setPos(LEFT_EDGE + 1 + newx,newy >> 3);
+  uint8_t temp = B00000001;
+  ssd1306_i2cDataStart();
+  temp = temp << ((newy & 0x07) + 1);
+  ssd1306_i2cSendByte(temp);
+  ssd1306_i2cStop();
+  if ((newx != lastx) || ((newy >> 3) != (lasty >> 3)))
+  {
+     ssd1306_setPos(LEFT_EDGE + 1 + lastx, lasty >> 3);
+     ssd1306_i2cDataStart();
+     ssd1306_i2cSendByte(B00000000);
+     ssd1306_i2cStop();
+  }
+}
+
+
+void drawObjects()
+{
+    for(uint8_t i=0; i<MAX_GAME_OBJECTS; i++)
+    {
+       if (objects[i].type == 0)
+       {
+       }
+       else if (objects[i].type == 1)
+       {
+           ssd1306_eraseSprite( &objects[i].sprite );
+           objects[i].type = 0;
+       }
+       else
+       {
+           ssd1306_eraseTrace( &objects[i].sprite );
+           ssd1306_drawSprite( &objects[i].sprite );
+       }
+    }
+}
+
+uint8_t freeObject()
+{
+    for(uint8_t i=0; i<MAX_GAME_OBJECTS; i++)
+    {
+        if (objects[i].type == 0) return i;
+    }
+    return 0xFF;
+}
+
+
+bool platformHit(uint8_t x, uint8_t y)
+{
+    if (y >= (SCREEN_HEIGHT - PLATFORM_HEIGHT))
+    {
+       if ((x >= platformPos) && (x <= platformPos + platformWidth))
+       {
+           return true;
+       }
+    }
+    return false;
+}
+
+
+enum
+{
+    BLOCK_HIT_NONE,
+    BLOCK_HIT_UNBREAKABLE,
+    BLOCK_HIT_BREAKABLE,
+    BLOCK_HIT_LEVEL_DONE,
+};
+
+uint8_t blockHit(uint8_t x, uint8_t y)
+{
+    uint8_t ball_row = y>>3;
+    if (ball_row < BLOCK_NUM_ROWS)
+    {
+        uint8_t ball_col = x >> 4;
+        uint8_t blockType = gameField[ball_row][ball_col];
+        if ( blockType > 0 )
+        {
+            if (blockType != BLOCK_STRONG)
+            {
+                gameField[ball_row][ball_col] = 0;
+                score++;
+                blocksLeft--;
+                noInterrupts();
+                drawBlock(ball_col, ball_row);
+                updateStatusPanel = true;
+                interrupts();
+                if (blockType >= BLOCK_BONUS)
+                {
+                    uint8_t i = freeObject();
+                    if (i != 0xFF)
+                    {
+                        objects[i].sprite = ssd1306_createSprite( (ball_col << 4) + 6,
+                                                                  (ball_row << 3),
+                                                                   5,
+                                                                   &bonusSprites[blockType - BLOCK_BONUS][0] );
+                        objects[i].extra = 0;
+                        objects[i].type = blockType;
+                    }
+                }
+            }
+            // reset blocks if all have been hit
+            if (blocksLeft == 0)
+            {
+                level++;
+                startLevel();
+                return BLOCK_HIT_LEVEL_DONE;
+            }
+            return (blockType == BLOCK_STRONG ? BLOCK_HIT_UNBREAKABLE : BLOCK_HIT_BREAKABLE);
+        }
+    }
+    return BLOCK_HIT_NONE;
+}
+
+
+bool moveObjects()
+{
+    for(uint8_t i=0; i<MAX_GAME_OBJECTS; i++)
+    {
+       if (objects[i].type <= 1)
+       {
+       }
+       else if (objects[i].type < BLOCKS_MAX)
+       {
+           if (objects[i].sprite.y >= (SCREEN_HEIGHT - PLATFORM_HEIGHT - 4))
+           {
+               objects[i].type = 1;
+           }
+           else
+           {
+               if (objects[i].extra-- == 0)
+               {
+                   objects[i].extra = 1;
+                   if (platformHit(objects[i].sprite.x + 3, objects[i].sprite.y + 8))
+                   {
+                       if (objects[i].type == BLOCK_BOMB)
+                       {
+                           onKill();
+                           return false;
+                       }
+                       else if (objects[i].type == BLOCK_HEART)
+                       {
+                           hearts++;
+                           updateStatusPanel = true;
+                       }
+                       else if (objects[i].type == BLOCK_POWER)
+                       {
+                           platformPower = 255;
+                           updateStatusPanel = true;
+                       }
+                       objects[i].type = 1;
+                   }
+                   objects[i].sprite.y++;
+               }
+           }
+       }
+       else if (objects[i].type == 0xFF)
+       {
+           if (objects[i].sprite.y <= 1)
+           {
+               objects[i].type = 1;
+           }
+           else
+           {
+               uint8_t hitType = blockHit( objects[i].sprite.x, objects[i].sprite.y - 1 );
+               if (hitType != BLOCK_HIT_NONE)
+               {
+                   if (hitType == BLOCK_HIT_LEVEL_DONE)
+                   {
+                       return false;
+                   }
+                   objects[i].type = 1;
+               }
+               else
+               {
+                   objects[i].sprite.y -= 1;
+               }
+           }
+       }
+    }
+    return true;
+}
+
+
+// continues moving after interrupt
+void movePlatform()
+{
+    if (digitalRead(RIGHT_BTN) != LOW)
+    {
+        platformPos = min(RIGHT_EDGE - LEFT_EDGE - 1 - platformWidth, platformPos + PLATFORM_SPEED);
+    }
+    if (digitalRead(LEFT_BTN) != LOW)
+    {
+        platformPos = max(0, platformPos - PLATFORM_SPEED);
+    }
+    if (platformPower  != 0)
+    {
+        platformPower--;
+        if (platformPower % 32 == 0)
+        {
+            uint8_t i = freeObject();
+            if (i != 0xFF)
+            {
+                objects[i].sprite = ssd1306_createSprite( platformPos + (platformWidth >> 1),
+                                                          SCREEN_HEIGHT - PLATFORM_HEIGHT - 8,
+                                                           1,
+                                                           shootSprite );
+                objects[i].extra = 0;
+                objects[i].type = 0xFF;
+            }
+        }
+        if (platformPower == 0) updateStatusPanel = true;
+    }
+}
+
+void gameOver(uint16_t topScore)
+{
+    noInterrupts();
+    ssd1306_fillScreen(0x00);
+    ssd1306_charF6x8(32, 2, "GAME OVER");
+    ssd1306_charF6x8(32, 4, "score ");
+    char temp[6] = {0,0,0,0,0,0};
+    utoa(score,temp,10);
+    ssd1306_charF6x8(70, 4, temp);
+    ssd1306_charF6x8(32, 5, "top score ");
+    utoa(topScore,temp,10);
+    ssd1306_charF6x8(90, 5, temp);
+    interrupts();
+    for (int i = 0; i<1000; i++)
+    {
+       beep(1,random(0,i*2));
+    }
+    delay(2000);
+}
+
+
+void platformCrashAnimation()
+{
+    for (uint8_t j = 0; j < 4; j++)
+    {
+        noInterrupts();
+        for ( uint8_t i = 0; i < platformWidth >> 2; i++ )
+        {
+            ssd1306_setPos( platformPos + (i<<2) + ((j & 0x01)<<1) + ((j & 0x02)>>1) + LEFT_EDGE + 1, PLATFORM_ROW );
+            ssd1306_i2cDataStart();
+            ssd1306_i2cSendByte(B00000000);
+            ssd1306_i2cStop();
+        }
+        interrupts();
+        delay(150);
+    }
+}
+
+
+void onKill()
+{
+    if (hearts == 0)
+    {
+        platformCrashAnimation();
+        // game over if the ball misses the platform
+        uint16_t topScore = eeprom_read_word(EEPROM_ADDR);
+        if (topScore == 0xFFFF)
+        {
+            eeprom_write_word(EEPROM_ADDR, 0);
+            topScore = 0;
+        }
+        if (score>topScore)
+        {
+            topScore = score;
+            eeprom_write_word(EEPROM_ADDR, topScore);
+        }
+
+        gameOver(topScore);
+        system_sleep();
+        level = 1;
+        resetGame();
+    }
+    else
+    {
+        platformCrashAnimation();
+        hearts--;
+        startLevel();
+    }
+}
+
 
 // the collsision check is actually done before this is called, this code works
 // out where the ball will bounce
-void collision(){
-  if ((bally+vdir)%8==7&&(ballx+hdir)%8==7){ // bottom right corner
-    if (vdir==1){hdir=1;}else if(vdir==-1&&hdir==1){vdir=1;}else {hdir=1;vdir=1;}
-  }else if ((bally+vdir)%8==7&&(ballx+hdir)%8==0){ // bottom left corner
-    if (vdir==1){hdir=-1;}else if(vdir==-1&&hdir==-1){vdir=1;}else {hdir=-1;vdir=1;}
-  }else if ((bally+vdir)%8==0&&(ballx+hdir)%8==0){ // top left corner
-    if (vdir==-1){hdir=-1;}else if(vdir==1&&hdir==-1){vdir=-1;}else {hdir=-1;vdir=-1;}
-  }else if ((bally+vdir)%8==0&&(ballx+hdir)%8==7){ // top right corner
-    if (vdir==-1){hdir=1;}else if(vdir==1&&hdir==1){vdir=-1;}else {hdir=1;vdir=-1;}
-  }else if ((bally+vdir)%8==7){ // bottom side
-    vdir = 1;
-  }else if ((bally+vdir)%8==0){ // top side
-    vdir = -1;
-  }else if ((ballx+hdir)%8==7){ // right side
-    hdir = 1;
-  }else if ((ballx+hdir)%8==0){ // left side
-    hdir = -1;
-  }else {
-    hdir = hdir*-1; vdir = vdir*-1;
+void collision(uint8_t partx, uint8_t party)
+{
+  /* botton / top collision */
+  if ((party <= 0) || (party >= 7))
+  {
+      vSpeed = -vSpeed;
   }
-
+  else if ((partx <= 0) || (partx >= 15))
+  {
+      hSpeed = -hSpeed;
+  }
   beep(30,300);
-
 }
 
-void drawPlatform(){
-  noInterrupts();
-  ssd1306_setPos(player,PLAYER_ROW);
-  ssd1306_i2cDataStart();
-  for (byte pw = 1; pw <platformWidth; pw++) {
-    ssd1306_i2cSendByte(B00000011);
-  }
-  ssd1306_i2cStop();
-  interrupts();
-}
-
-void sendBlock(boolean fill){
-  if (fill==1){
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B01111110);
-    ssd1306_i2cSendByte(B00000000);
-  }else {
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-    ssd1306_i2cSendByte(B00000000);
-  }
-}
-
-void resetBlocks() {
-  for (byte i =0; i<BLOCKS_PER_ROW;i++){
-    for (int j=0; j<BLOCK_NUM_ROWS; ++j) {
-      rows[j][i] = 1;
-    }
-  }
-}
-
-void drawBlocks() {
-  for (int r=0; r<BLOCK_NUM_ROWS; ++r) {
-    ssd1306_setPos(0,r);
-    ssd1306_i2cDataStart();
-    for (int bl = 0; bl <BLOCKS_PER_ROW; bl++) {
-      if(rows[r][bl]==1){
-        sendBlock(1);
-      }else {
-        sendBlock(0);
-      }
-    }
-    ssd1306_i2cStop();
-  }
-}
-
-void clearAreaBelowBlocks() {
-  for (int r=BLOCK_NUM_ROWS; r<NUM_ROWS; ++r) {
-    ssd1306_setPos(0,r);
-    ssd1306_i2cDataStart();
-    for (byte i =0; i<SCREEN_WIDTH; i++){
-      ssd1306_i2cSendByte(B00000000);
-    }
-    ssd1306_i2cStop();
-  }
-}
-
-void drawBall() {
-  ssd1306_setPos(ballx,bally>>3);
-  uint8_t temp = B00000001;
-  ssd1306_i2cDataStart();
-  temp = temp << ((bally&0x07)+1);
-  ssd1306_i2cSendByte(temp);
-  ssd1306_i2cStop();
-}
-
-// continues moving after interrupt
-void platformStep() {
-  if (digitalRead(RIGHT_BTN)==1) {
-    player = min(SCREEN_WIDTH-platformWidth, player+3);
-  }
-  if (digitalRead(LEFT_BTN)==1) {
-    player = max(0, player-3);
-  }
-}
 
 // move and bounce the ball when reaches the screen limits
-void ballStep() {
-  if ((bally+vdir<SCREEN_HEIGHT-PLATFORM_HEIGHT && vdir==1) ||
-      (bally-vdir>1 && vdir==-1)) {
-    bally+=vdir;
+bool moveBall()
+{
+  uint8_t nextx = (ballx + hSpeed) >> SPEED_SHIFT;
+  uint8_t nexty = (bally + vSpeed) >> SPEED_SHIFT;
+  /* checkplatform Hit */
+  if (platformHit(nextx, nexty))
+  {
+     int middle = platformPos + (platformWidth >> 1);
+     hSpeed = (nextx - middle) / (platformWidth >> (SPEED_SHIFT + 1));
+     vSpeed = -max(4 - abs(hSpeed), 1);
+     beep(20,600);
   }
-  else {
-    vdir = vdir*-1;
+  /* Check screen hit */
+  nextx = (ballx + hSpeed) >> SPEED_SHIFT;
+  nexty = (bally + vSpeed) >> SPEED_SHIFT;
+  if ((nextx <= 0) || (nextx >= RIGHT_EDGE - LEFT_EDGE - 1))
+  {
+      hSpeed = -hSpeed;
   }
-  if (((ballx+hdir<SCREEN_WIDTH-1) && (hdir==1)) ||
-      ((ballx-hdir>1) && (hdir==-1))) {
-    ballx+=hdir;
+  if (nexty <= 0)
+  {
+      vSpeed = -vSpeed;
   }
-  else {
-    hdir = hdir*-1;
+  /* Check game over */
+  if (nexty >=(SCREEN_HEIGHT - PLATFORM_HEIGHT + 2))
+  {
+      onKill();
+      return false;
   }
+  ballx += hSpeed;
+  bally += vSpeed;
+  /* Check bar hit */
+  uint8_t hitType = blockHit( ballx >> SPEED_SHIFT, bally >> SPEED_SHIFT );
+  if (hitType != BLOCK_HIT_NONE)
+  {
+      if (hitType == BLOCK_HIT_LEVEL_DONE)
+      {
+          return false;
+      }
+      if (hitType == BLOCK_HIT_UNBREAKABLE)
+      {
+          ballx -= hSpeed;
+          bally -= vSpeed;
+      }
+      uint8_t partx = (ballx >> SPEED_SHIFT) & 0x0F;
+      uint8_t party = (bally >> SPEED_SHIFT) & 0x07;
+      collision(partx, party);
+  }
+  return true;
 }
 
-void frameStep() {
-  if (bally+vdir>=SCREEN_HEIGHT-PLATFORM_HEIGHT) {
-    if(bally>10 &&
-       (ballx<player || ballx>player+platformWidth)) {
-      // game over if the ball misses the platform
-      uint16_t topScore = eeprom_read_word(EEPROM_ADDR);
-      if (topScore == 0xFFFF) {
-        eeprom_write_word(EEPROM_ADDR, 0);
-        topScore = 0;
-      }
-      if (score>topScore){
-        topScore = score;
-        eeprom_write_word(EEPROM_ADDR, topScore);
-      }
-      ssd1306_fillScreen(0x00);
-      ssd1306_charF6x8(32, 3, "Game Over");
-      ssd1306_charF6x8(32, 5, "score ");
-      char temp[6] = {0,0,0,0,0,0};
-      utoa(score,temp,10);
-      ssd1306_charF6x8(70, 5, temp);
-      ssd1306_charF6x8(32, 6, "top score ");
-      utoa(topScore,temp,10);
-      ssd1306_charF6x8(90, 6, temp);
-      for (int i = 0; i<1000; i++){
-        beep(1,random(0,i*2));
-      }
-      delay(1000);
-      system_sleep();
-      resetGame();
-    }else if (ballx<player+(platformWidth>>1) && bally>10) {
-      // if the ball hits left of the platform bounce left
-      hdir=-1;
-      beep(20,600);
-    }else if (ballx>player+(platformWidth>>1) && bally>10) {
-      // if the ball hits right of the platform bounce right
-      hdir=1;
-      beep(20,600);
-    }else {
-      // bounce right by default
-      hdir=1;
-      beep(20,600);
-    }
-  }
 
-  int ball_row;
- collisionCheck: // go back to here if a collision was detected to prevent flying through a rigid
-  ball_row = (bally+vdir)>>3;
-  if (ball_row <= 2){
-    if (rows[ball_row][ballx>>3]==1) {
-      rows[ball_row][ballx>>3]=0;
-      score++;
-      collision();
-      // reset blocks if all have been hit
-      if (score%TOTAL_BLOCKS==0){
-        resetBlocks();
-      }
-      // check collision for the new direction to prevent flying through a rigid
-      goto collisionCheck;
+void beep(int bCount,int bDelay)
+{
+    for (int i = 0; i<=bCount*2; i++)
+    {
+        digitalWrite(BUZZER,i&1);
+        for(int i2=0; i2<bDelay; i2++){__asm__("nop\n\t");}
     }
-  }
-}
-
-void beep(int bCount,int bDelay){
-  for (int i = 0; i<=bCount*2; i++){
-    digitalWrite(BUZZER,i&1);
-    for(int i2=0; i2<bDelay; i2++){__asm__("nop\n\t");}
-  }
     digitalWrite(BUZZER,LOW);
 }
 

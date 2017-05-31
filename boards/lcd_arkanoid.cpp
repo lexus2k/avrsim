@@ -22,12 +22,12 @@
 
 SSD1306_I2C display(0, 0);
 DIGITAL_BUTTON rightButton(200, 160, SDL_SCANCODE_M);
-DIGITAL_BUTTON leftButton(10, 160, SDL_SCANCODE_Z);
+DIGITAL_BUTTON leftButton(40, 160, SDL_SCANCODE_Z);
 
 void boardConfig()
 {
     display.BindPins(MCU_PIN3, MCU_PIN2);
-    rightButton.BindPins(MCU_PIN7);
-    leftButton.BindPins(MCU_PIN5);
+    rightButton.BindPins(MCU_PIN5);
+    leftButton.BindPins(MCU_PIN7);
 }
 

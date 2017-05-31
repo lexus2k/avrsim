@@ -20,12 +20,13 @@
 
 #include "ssd1306_i2c.h"
 #include "ssd1306_pins.h"
+
 /**
  * Port registers, containing pins, which SSD1306 display is connected to.
  * For ATtiny controllers it is standard PORTB
  * For ATmega328p, it is PORTC, which corresponds to Analog inputs/outputs
  */
-#if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny85__) 
+#if defined(__AVR_ATtiny25__) | defined(__AVR_ATtiny45__) | defined(__AVR_ATtiny85__)
     // at 8Mhz each command takes ~ 0.125us
     #define DDR_REG      DDRB
     #define PORT_REG     PORTB
@@ -105,10 +106,10 @@ void ssd1306_i2cSendByte(uint8_t byte)
       else
         DIGITAL_WRITE_LOW(SSD1306_SDA);
       ssd1306_delay(I2C_RISE_TIME); // Fall time is the same as rise time
-		
+
       DIGITAL_WRITE_HIGH(SSD1306_SCL);
       ssd1306_delay(I2C_HALF_CLOCK);
-      
+
       DIGITAL_WRITE_LOW(SSD1306_SCL);
       ssd1306_delay(I2C_HALF_CLOCK);
     }
