@@ -2,6 +2,7 @@
 
 This is simulator for AVR controllers.
 It supports partially Attiny85, and is provided as is.
+OS: Linux
 
 1. Introduction
 
@@ -29,12 +30,16 @@ Only C++ is supported.
  * emu/mcu      - cpu specific files (reworked avr files)
  * emu/modules  - Modules to connect to your mcu configuration: display, buttons
  * emu/utils    - Some headers with avrlib specific functions
+ * boards       - contains hardware board description in C++ for each project
+ * projects     - contains original project sources
+ * projects/libraries - contains libraries used by the projects
 
 4. Usage
 
  SDL2 is required to be installed in the system, you're working in.
 
- To run demo (arkanoid breakout game is used as example):
+ To run demo (arkanoid breakout game is used as default example):
+
  * make run
 
  If you want to place your project:
