@@ -30,18 +30,18 @@ Only C++ is supported.
  * emu/modules  - Modules to connect to your mcu configuration: display, buttons
  * emu/utils    - Some headers with avrlib specific functions
 
-4. Using
+4. Usage
 
  SDL2 is required to be installed in the system, you're working in.
 
  To run demo (arkanoid breakout game is used as example):
-     make run
+ * make run
 
  If you want to place your project:
- a) put all libs, projects requires to projects/libraries
- b) put your project files to projects/<name> folder
- c) create board configuration for your project: boards/<name>.cpp.
+ * put all libs, projects requires to projects/libraries
+ * put your project files to projects/<name> folder
+ * create board configuration for your project: boards/<name>.cpp.
     refer to lcd_arkanoid.cpp as example.
- d) run: make PROJECT=<name> LIBRARIES=<list> run
+ * run: make PROJECT=<name> LIBRARIES=<list> run
 
 That's it
