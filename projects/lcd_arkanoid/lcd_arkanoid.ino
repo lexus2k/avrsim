@@ -182,10 +182,7 @@ void drawIntro()
   noInterrupts();
   ssd1306_init();
   ssd1306_fillScreen(0x00);
-//  canvas.char_f6x8(0,4, "BREAK");
-//  canvas.char_f6x8(6,12, "OUT" );
   ssd1306_drawBitmap(16, 2, 96, 24, arkanoid_2);
-//  ssd1306_drawCanvas(0, 0, canvas.width(), canvas.height(), canvas.buffer());
   ssd1306_charF6x8(40, 5, "BREAKOUT");
   interrupts();
   beep(200,600);
@@ -556,14 +553,15 @@ void gameOver(uint16_t topScore)
 {
     noInterrupts();
     ssd1306_fillScreen(0x00);
-    ssd1306_charF6x8(32, 2, "GAME OVER");
-    ssd1306_charF6x8(32, 4, "score ");
+    ssd1306_drawBitmap(16, 0, 96, 24, arkanoid_2);
+    ssd1306_charF6x8(32, 4, "GAME OVER");
+    ssd1306_charF6x8(32, 5, "score ");
     char temp[6] = {0,0,0,0,0,0};
     utoa(score,temp,10);
-    ssd1306_charF6x8(70, 4, temp);
-    ssd1306_charF6x8(32, 5, "top score ");
+    ssd1306_charF6x8(70, 5, temp);
+    ssd1306_charF6x8(32, 6, "top score ");
     utoa(topScore,temp,10);
-    ssd1306_charF6x8(90, 5, temp);
+    ssd1306_charF6x8(90, 6, temp);
     interrupts();
     for (int i = 0; i<1000; i++)
     {
@@ -623,16 +621,13 @@ void onKill()
 }
 
 
-// the collsision check is actually done before this is called, this code works
-// out where the ball will bounce
-void collision(uint8_t partx, uint8_t party)
+void blockCollision(uint8_t partx, uint8_t party)
 {
-  /* botton / top collision */
   if ((party <= 0) || (party >= 7))
   {
       vSpeed = -vSpeed;
   }
-  else if ((partx <= 0) || (partx >= 15))
+  if ((partx <= 0) || (partx >= 15))
   {
       hSpeed = -hSpeed;
   }
@@ -640,56 +635,56 @@ void collision(uint8_t partx, uint8_t party)
 }
 
 
-// move and bounce the ball when reaches the screen limits
 bool moveBall()
 {
-  uint8_t nextx = (ballx + hSpeed) >> SPEED_SHIFT;
-  uint8_t nexty = (bally + vSpeed) >> SPEED_SHIFT;
-  /* checkplatform Hit */
-  if (platformHit(nextx, nexty))
-  {
-     int middle = platformPos + (platformWidth >> 1);
-     hSpeed = (nextx - middle) / (platformWidth >> (SPEED_SHIFT + 1));
-     vSpeed = -max(4 - abs(hSpeed), 1);
-     beep(20,600);
-  }
-  /* Check screen hit */
-  nextx = (ballx + hSpeed) >> SPEED_SHIFT;
-  nexty = (bally + vSpeed) >> SPEED_SHIFT;
-  if ((nextx <= 0) || (nextx >= RIGHT_EDGE - LEFT_EDGE - 1))
-  {
-      hSpeed = -hSpeed;
-  }
-  if (nexty <= 0)
-  {
-      vSpeed = -vSpeed;
-  }
-  /* Check game over */
-  if (nexty >=(SCREEN_HEIGHT - PLATFORM_HEIGHT + 2))
-  {
-      onKill();
-      return false;
-  }
-  ballx += hSpeed;
-  bally += vSpeed;
-  /* Check bar hit */
-  uint8_t hitType = blockHit( ballx >> SPEED_SHIFT, bally >> SPEED_SHIFT );
-  if (hitType != BLOCK_HIT_NONE)
-  {
-      if (hitType == BLOCK_HIT_LEVEL_DONE)
-      {
-          return false;
-      }
-      if (hitType == BLOCK_HIT_UNBREAKABLE)
-      {
-          ballx -= hSpeed;
-          bally -= vSpeed;
-      }
-      uint8_t partx = (ballx >> SPEED_SHIFT) & 0x0F;
-      uint8_t party = (bally >> SPEED_SHIFT) & 0x07;
-      collision(partx, party);
-  }
-  return true;
+    for (;;)
+    {
+        uint8_t nextx = (ballx + hSpeed) >> SPEED_SHIFT;
+        uint8_t nexty = (bally + vSpeed) >> SPEED_SHIFT;
+        /* checkplatform Hit */
+        if (platformHit(nextx, nexty))
+        {
+            int middle = platformPos + (platformWidth >> 1);
+            hSpeed = (nextx - middle) / (platformWidth >> (SPEED_SHIFT + 1));
+            vSpeed = -max(4 - abs(hSpeed), 1);
+            beep(20,600);
+            continue;
+        }
+        /* Check screen hit */
+        if ((nextx <= 0) || (nextx >= RIGHT_EDGE - LEFT_EDGE - 1))
+        {
+            hSpeed = -hSpeed;
+            continue;
+        }
+        if (nexty <= 0)
+        {
+            vSpeed = -vSpeed;
+            continue;
+        }
+        /* Check game over */
+        if (nexty >=(SCREEN_HEIGHT - PLATFORM_HEIGHT + 2))
+        {
+            onKill();
+            return false;
+        }
+        /* Check bar hit */
+        uint8_t hitType = blockHit( nextx, nexty );
+        if (hitType != BLOCK_HIT_NONE)
+        {
+            if (hitType == BLOCK_HIT_LEVEL_DONE)
+            {
+                return false;
+            }
+            uint8_t partx = (nextx) & 0x0F;
+            uint8_t party = (nexty) & 0x07;
+            blockCollision(partx, party);
+            continue;
+        }
+        break;
+    }
+    ballx += hSpeed;
+    bally += vSpeed;
+    return true;
 }
 
 
