@@ -31,9 +31,8 @@ public:
     CRegister & operator =(uint8_t value);
     CRegister & operator |=(uint8_t value);
     CRegister & operator &=(uint8_t value);
-    uint8_t operator |(uint8_t op2);
-    uint8_t operator &(uint8_t op2);
     uint8_t Get() { return m_value; };
+    operator uint8_t();
 
     void OnChangeBit(uint8_t bit, const std::function<void (uint8_t, uint8_t)> &cb);
 private:

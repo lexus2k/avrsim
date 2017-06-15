@@ -45,14 +45,9 @@ CRegister & CRegister::operator &=(uint8_t value)
 }
 
 
-uint8_t CRegister::operator |(uint8_t op2)
+CRegister::operator uint8_t()
 {
-    return m_value | op2;
-}
-
-uint8_t CRegister::operator &(uint8_t op2)
-{
-    return m_value & op2;
+    return m_value;
 }
 
 

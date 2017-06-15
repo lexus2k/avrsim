@@ -26,7 +26,7 @@
 default: all
 
 BLD ?= bld
-PROJECT ?= lcd_arkanoid
+PROJECT ?= arkanoid
 LIBRARIES ?= ssd1306
 
 EMU_FILES := $(wildcard emu/*/*.cpp) \
@@ -35,6 +35,7 @@ PROJECT_FILES := $(wildcard projects/$(PROJECT)/*.cpp) \
                  $(wildcard projects/$(PROJECT)/*.ino) \
                  boards/$(PROJECT).cpp
 LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/*.cpp))
+LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/src/*.cpp))
 SRC_FILES = $(EMU_FILES) $(PROJECT_FILES) $(LIBRARY_FILES)
 SDL := $(shell sdl2-config --cflags --libs)
 
@@ -67,7 +68,8 @@ $(BLD)/%.o: %.ino
 	$(CXX) -std=c++11 $(CCFLAGS) -x c++ -c $< -o $@
 
 INCLUDES += -Iemu \
-        $(addprefix -Iprojects/libraries/, $(LIBRARIES))
+        $(addprefix -Iprojects/libraries/, $(LIBRARIES)) \
+        $(addsuffix /src,$(addprefix -Iprojects/libraries/, $(LIBRARIES))) \
 
 CCFLAGS += -fPIC -g $(INCLUDES) -Wall -Werror -D__AVR_ATtiny85__ -DF_CPU=16000000 -pthread \
          $(SDL)
