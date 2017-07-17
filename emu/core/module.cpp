@@ -24,6 +24,7 @@
 #include <Arduino.h>
 #include <avr/io.h>
 #include "module.h"
+#include "core_modules.h"
 #include "system.h"
 
 CModule::CModule(int x, int y, int width, int height)

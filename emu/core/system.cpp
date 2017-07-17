@@ -28,6 +28,7 @@
 
 extern void setup();
 extern void loop();
+extern void boardConfig();
 
 int32_t         g_powerVoltage = VTOI(5.0);
 
@@ -74,25 +75,4 @@ long random(long min, long max)
     return rand() % (max - min + 1) + min;
 }
 
-
-void boardConfig() __attribute__((weak));
-void boardConfig()
-{
-}
-
-
-int main (int argc, char** argv)
-{
-    initMcu();
-    boardConfig();
-    coreInit();
-    setup();
-    while (!coreIsStopped())
-    {
-        loop();
-        SDL_Delay(0);
-    }
-    coreStop();
-    return 0;
-}
 

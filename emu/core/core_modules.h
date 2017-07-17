@@ -17,17 +17,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _CORE_H_
-#define _CORE_H_
+#ifndef _CORE_MODULES_H_
+#define _CORE_MODULES_H_
+
+#include <list>
 
 class CModule;
 
-extern void coreInit();
-extern void coreStop();
-extern bool coreIsStopped();
-extern void coreLock();
-extern void coreUnlock();
-extern void initMcu();
+extern std::list<CModule *> * coreGetModules();
+extern void coreRegisterModule(CModule *module);
 
 
 #endif

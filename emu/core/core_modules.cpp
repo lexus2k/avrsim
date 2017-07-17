@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2016-2017 Alexey Dynda
+    Copyright (C) 2017 Alexey Dynda
 
     This file is part of AVR Simulator project.
 
@@ -17,18 +17,26 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _CORE_H_
-#define _CORE_H_
+#include <unistd.h>
+#include <pthread.h>
+#include <time.h>
+#include <list>
+#include <SDL2/SDL.h>
+#include "core.h"
+#include "module.h"
+#include "system.h"
+#include <avr/io.h>
 
-class CModule;
-
-extern void coreInit();
-extern void coreStop();
-extern bool coreIsStopped();
-extern void coreLock();
-extern void coreUnlock();
-extern void initMcu();
+static std::list<CModule *> s_modules;
 
 
-#endif
+std::list<CModule *> * coreGetModules()
+{
+    return &s_modules;
+}
+
+void coreRegisterModule(CModule *module)
+{
+    s_modules.push_back(module);
+}
 

@@ -17,6 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "core_modules.h"
 #include <unistd.h>
 #include <pthread.h>
 #include <time.h>
@@ -29,6 +30,9 @@
 
 #define CANVAS_REFRESH_RATE  60
 
+const int screenWidth = 320;
+const int screenHeight = 240;
+
 uint32_t milliseconds(void)
 {
    struct timespec ts;
@@ -39,7 +43,6 @@ uint32_t milliseconds(void)
 static pthread_t s_thread;
 static pthread_mutex_t s_mutex;
 static bool s_stop;
-static std::list<CModule *> s_modules;
 static bool s_renderReady = false;
 
 static void *coreMainThread(void *arg)
@@ -59,7 +62,7 @@ static void *coreMainThread(void *arg)
         }
 //        if (SREG & (1<<SREG_I))
         coreLock();
-        for (auto module: s_modules)
+        for (auto module: *coreGetModules())
         {
             if (module->OnEvent(event))
             {
@@ -92,21 +95,29 @@ static void *coreRendererThread(void *arg)
     (
         "AVR SIMULATOR", SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
-        640,
-        480,
+        screenWidth,
+        screenHeight,
         SDL_WINDOW_SHOWN
     );
 
     g_renderer =  SDL_CreateRenderer( g_window, -1, SDL_RENDERER_ACCELERATED);
 
-    // Set render color to red ( background will be rendered in this color )
+    // Set render color to black ( background will be rendered in this color )
     SDL_SetRenderDrawColor( g_renderer, 20, 20, 20, 255 );
 
-    // Clear winow
+    // Clear window
     SDL_RenderClear( g_renderer );
 
     // Render the rect to the screen
     SDL_RenderPresent(g_renderer);
+
+    SDL_Rect r;
+    r.x = 0;
+    r.y = 0;
+    r.w = screenWidth;
+    r.h = screenHeight;
+
+    SDL_RenderFillRect( g_renderer, &r );
 
     s_renderReady = true;
     uint32_t lastRenderTs = milliseconds();
@@ -114,7 +125,7 @@ static void *coreRendererThread(void *arg)
     {
         if (milliseconds() - lastRenderTs > (1000 / CANVAS_REFRESH_RATE))
         {
-            for (auto module: s_modules)
+            for (auto module: *coreGetModules())
             {
                 module->OnDraw(g_renderer);
             }
@@ -167,9 +178,4 @@ void coreUnlock()
     pthread_mutex_unlock(&s_mutex);
 }
 
-
-void coreRegisterModule(CModule *module)
-{
-    s_modules.push_back(module);
-}
 

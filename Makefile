@@ -28,15 +28,21 @@ default: all
 BLD ?= bld
 PROJECT ?= arkanoid
 LIBRARIES ?= ssd1306
+MCU ?= attiny85
 
 EMU_FILES := $(wildcard emu/*/*.cpp) \
              $(wildcard emu/*/*/*.cpp)
+MAIN_FILES := $(wildcard main/*.cpp)
 PROJECT_FILES := $(wildcard projects/$(PROJECT)/*.cpp) \
-                 $(wildcard projects/$(PROJECT)/*.ino) \
-                 boards/$(PROJECT).cpp
+              $(wildcard projects/$(PROJECT)/*.ino) \
+              boards/$(PROJECT).cpp
 LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/*.cpp))
 LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/src/*.cpp))
-SRC_FILES = $(EMU_FILES) $(PROJECT_FILES) $(LIBRARY_FILES)
+
+EMU_SRC_FILES = $(EMU_FILES)
+PROJECT_SRC_FILES = $(PROJECT_FILES) $(LIBRARY_FILES)
+MAIN_SRC_FILES = $(MAIN_FILES)
+
 SDL := $(shell sdl2-config --cflags --libs)
 
 # set up compiler and options
@@ -50,7 +56,6 @@ else
     AR = $(CROSS_COMPILE)ar
 endif
 
-export SDK_BASEDIR
 export CROSS_COMPILE
 
 .SUFFIXES: .c .cpp .ino
@@ -71,10 +76,17 @@ INCLUDES += -Iemu \
         $(addprefix -Iprojects/libraries/, $(LIBRARIES)) \
         $(addsuffix /src,$(addprefix -Iprojects/libraries/, $(LIBRARIES))) \
 
-CCFLAGS += -fPIC -g $(INCLUDES) -Wall -Werror -D__AVR_ATtiny85__ -DF_CPU=16000000 -pthread \
+CCFLAGS += -fPIC -g $(INCLUDES) -Wall -Werror -DF_CPU=16000000 -pthread \
          $(SDL)
 
-OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(SRC_FILES))))
+ifeq ($(MCU),attiny85)
+    CCFLAGS += -D__AVR_ATtiny85__
+endif
+
+PROJECT_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(PROJECT_SRC_FILES))))
+
+EMU_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(EMU_SRC_FILES))))
+MAIN_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(MAIN_SRC_FILES))))
 
 .PHONY: clean all executable run
 
@@ -83,8 +95,14 @@ all: executable
 clean:
 	rm -rf $(BLD)
 
-executable: $(OBJ_FILES)
-	$(CXX) $(CCFLAGS) -o $(BLD)/start $(OBJ_FILES) -L. -L$(BLD) $(SDL) -lm -lpthread
+$(BLD)/lib$(MCU).so: $(EMU_OBJ_FILES)
+	$(CXX) -shared $(CCFLAGS) -o $@ $(EMU_OBJ_FILES) -L. -L$(BLD) $(SDL) -lm -lpthread
+
+$(BLD)/lib$(PROJECT).so: $(PROJECT_OBJ_FILES) $(BLD)/lib$(MCU).so
+	$(CXX) -shared $(CCFLAGS) -o $@ $(PROJECT_OBJ_FILES) -L. -L$(BLD) -l$(MCU)
+
+executable: $(MAIN_OBJ_FILES) $(BLD)/lib$(MCU).so $(BLD)/lib$(PROJECT).so
+	$(CXX) $(CCFLAGS) -o $(BLD)/start $(MAIN_OBJ_FILES) -L. -L$(BLD) $(SDL) -lm -lpthread -l$(PROJECT) -l$(MCU)
 
 run: executable
-	$(BLD)/start
+	LD_LIBRARY_PATH=$(BLD) ./$(BLD)/start

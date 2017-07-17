@@ -17,8 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <modules.h>
-#include "Arduino.h"
+#include <board.h>
 
 SSD1306_I2C display(0, 0);
 DIGITAL_BUTTON rightButton(200, 160, SDL_SCANCODE_M);
