@@ -44,8 +44,12 @@ private:
     bool s_commandMode = false;
     SDL_Window *s_window = nullptr;
     SDL_Renderer *s_renderer = nullptr;
-    int m_pixelX = 0;
-    int m_pixelY = 0;
+    int m_columnStartAddress = 0;
+    int m_columnEndAddress = 127;
+    int m_activeColumn = 0;
+    int m_activePage = 0;
+    int m_command;
+
     uint8_t  m_buffer[8][128];
 
     uint8_t  m_scl;

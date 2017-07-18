@@ -107,30 +107,56 @@ void Cssd1306i2c::ssd1306_i2cSendByte(uint8_t byte)
         s_newTransmission = false;
         if (byte == 0x00) s_commandMode = true;
         else s_commandMode = false;
+        m_command = -1;
     }
     else if (s_commandMode)
     {
-        if ((byte >= 0xb0) && (byte <= 0xbf))
+        if ((m_command & 0x00FF) == 0x21)
         {
-            m_pixelY =  (uint16_t)(byte & 0x0F);
+            if ((m_command & 0x0100) == 0x0000)
+            {
+                m_columnStartAddress = byte;
+                m_command |= 0x0100;
+                return;
+            }
+            else
+            {
+                m_columnEndAddress = byte;
+                m_command = -1;
+                return;
+            }
         }
-        else if ((byte <= 0x0F))
         {
-            m_pixelX = (m_pixelX & 0xFFF0) | (uint16_t)byte;
-        }
-        else if ((byte <= 0x1F) && (byte >= 0x10))
-        {
-            m_pixelX = (m_pixelX & 0x000F) | ((int16_t)(byte & 0x0F) << 4);
+            if ((byte >= 0xb0) && (byte <= 0xbf))
+            {
+                m_activePage =  (uint16_t)(byte & 0x0F);
+            }
+            else if ((byte <= 0x0F))
+            {
+                m_activeColumn = (m_activeColumn & 0xFFF0) | (uint16_t)byte;
+            }
+            else if ((byte <= 0x1F) && (byte >= 0x10))
+            {
+                m_activeColumn = (m_activeColumn & 0x000F) | ((int16_t)(byte & 0x0F) << 4);
+            }
+            else
+            {
+                m_command = byte;
+            }
         }
     }
     else if (!s_commandMode)
     {
-        m_buffer[m_pixelY][m_pixelX] = byte;
-        m_pixelX++;
-        if (m_pixelX >= 128)
+        m_buffer[m_activePage][m_activeColumn] = byte;
+        m_activeColumn++;
+        if (m_activeColumn > m_columnEndAddress)
         {
-            m_pixelX = 0;
-            m_pixelY ++;
+            m_activeColumn = m_columnStartAddress;
+            m_activePage++;
+            if (m_activePage >= 8)
+            {
+                m_activePage = 0;
+            }
         }
     }
 }
