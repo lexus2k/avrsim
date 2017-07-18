@@ -46,7 +46,7 @@ private:
     SDL_Renderer *s_renderer = nullptr;
     int m_pixelX = 0;
     int m_pixelY = 0;
-    uint8_t  m_buffer[64][128];
+    uint8_t  m_buffer[8][128];
 
     uint8_t  m_scl;
     uint8_t  m_sda;

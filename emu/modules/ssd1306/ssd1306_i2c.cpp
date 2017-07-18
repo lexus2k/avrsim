@@ -112,7 +112,7 @@ void Cssd1306i2c::ssd1306_i2cSendByte(uint8_t byte)
     {
         if ((byte >= 0xb0) && (byte <= 0xbf))
         {
-            m_pixelY =  (uint16_t)(byte & 0x0F) * 8;
+            m_pixelY =  (uint16_t)(byte & 0x0F);
         }
         else if ((byte <= 0x0F))
         {
@@ -125,24 +125,12 @@ void Cssd1306i2c::ssd1306_i2cSendByte(uint8_t byte)
     }
     else if (!s_commandMode)
     {
-        for (int i=0; i<8; i++)
-        {
-            if (byte & (1<<i))
-            {
-                m_buffer[m_pixelY][m_pixelX] = 1;
-            }
-            else
-            {
-                m_buffer[m_pixelY][m_pixelX] = 0;
-            }
-            m_pixelY++;
-        }
-        m_pixelY -= 8;
+        m_buffer[m_pixelY][m_pixelX] = byte;
         m_pixelX++;
         if (m_pixelX >= 128)
         {
             m_pixelX = 0;
-            m_pixelY += 8;
+            m_pixelY ++;
         }
     }
 }
@@ -150,25 +138,28 @@ void Cssd1306i2c::ssd1306_i2cSendByte(uint8_t byte)
 
 void Cssd1306i2c::OnDraw(SDL_Renderer *renderer)
 {
-    for (int y = 0; y < 64; y++)
+    for (int y = 0; y < 8; y++)
     {
         for (int x=0; x<128; x++)
         {
-            if (m_buffer[y][x])
+            for (int i=0; i<8; i++)
             {
-                SDL_SetRenderDrawColor( renderer, 170, 170, 205, 255 );
+                if (m_buffer[y][x] & (1<<i))
+                {
+                    SDL_SetRenderDrawColor( renderer, 170, 170, 205, 255 );
+                }
+                else
+                {
+                    SDL_SetRenderDrawColor( renderer, 20, 20, 20, 255 );
+                }
+                SDL_Rect r;
+                r.x = x * PIXEL_SIZE + m_posX + 1;
+                r.y = ((y<<3) + i) * PIXEL_SIZE + m_posY + 1;
+                r.w = PIXEL_SIZE;
+                r.h = PIXEL_SIZE;
+                // Render rect
+                SDL_RenderFillRect( renderer, &r );
             }
-            else
-            {
-                SDL_SetRenderDrawColor( renderer, 20, 20, 20, 255 );
-            }
-            SDL_Rect r;
-            r.x = x * PIXEL_SIZE + m_posX + 1;
-            r.y = y * PIXEL_SIZE + m_posY + 1;
-            r.w = PIXEL_SIZE;
-            r.h = PIXEL_SIZE;
-            // Render rect
-            SDL_RenderFillRect( renderer, &r );
         }
     }
     SDL_SetRenderDrawColor( renderer, 60, 200, 60, 255 );
