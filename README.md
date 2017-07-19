@@ -42,6 +42,9 @@ Only C++ is supported.
 
  * make run
 
+ To run lode runner demo:
+ * make PROJECT=lode_runner run
+
  If you want to place your project:
  * put all libs, projects requires to projects/libraries
  * put your project files to projects/<name> folder
