@@ -21,8 +21,12 @@ Only C++ is supported.
 2. Supported MCUs
 
  * Attiny85 (partially)
+ 
+3. Supported OS
 
-3. Structure
+ * Linux
+
+4. Structure
 
  * emu/avr      - Fake AVR stdlib headers
  * emu/core     - Simulator core, implementing main Arduino/AVR
@@ -34,7 +38,7 @@ Only C++ is supported.
  * projects     - contains original project sources
  * projects/libraries - contains libraries used by the projects
 
-4. Usage
+5. Usage
 
  SDL2 is required to be installed in the system, you're working in.
 
