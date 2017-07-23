@@ -17,10 +17,38 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _NONISO_H_
-#define _NONISO_H_
+#ifndef __PGMSPACE_H_
+#define __PGMSPACE_H_ 1
 
-char *utoa(unsigned int num, char *str, int radix);
+#include <stdint.h>
+#include <string.h>
 
+#define PROGMEM
 
-#endif /* _NONISO_H_ */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef PGM_P
+#define PGM_P const char *
+#endif
+
+#define pgm_read_byte(address_short)    *((uint8_t *)address_short)
+
+#define pgm_read_word(address_short)    *((uint16_t *)address_short)
+
+#define pgm_read_dword(address_short)   *((uint32_t *)address_short)
+
+#define pgm_read_float(address_short)   *((float *)address_short)
+
+#define pgm_read_ptr(address_short)     *(address_short)
+
+static inline char *strcpy_P(char *dst, const char *src) { return strcpy(dst,src); };
+
+static inline size_t strlen_P(const char * s) { return strlen(s); };
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __PGMSPACE_H_ */

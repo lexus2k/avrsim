@@ -30,19 +30,42 @@ PROJECT ?= arkanoid
 LIBRARIES ?= ssd1306
 MCU ?= attiny85
 
-EMU_FILES := $(wildcard emu/*/*.cpp) \
-             $(wildcard emu/*/*/*.cpp)
-MAIN_FILES := $(wildcard main/*.cpp)
-PROJECT_FILES := $(wildcard projects/$(PROJECT)/*.cpp) \
-              $(wildcard projects/$(PROJECT)/*.ino) \
-              boards/$(PROJECT).cpp
-LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/*.cpp))
-LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard projects/libraries/$(lib)/src/*.cpp))
+ifeq ($(MCU),attiny85)
+    CCFLAGS += -D__AVR_ATtiny85__ -D__AVR_ARCH__=100
+endif
 
-EMU_SRC_FILES = $(EMU_FILES)
-PROJECT_SRC_FILES = $(PROJECT_FILES) $(LIBRARY_FILES)
+ifeq ($(MCU),atmega328p)
+    CCFLAGS += -D__AVR_ATmega328P__ -D__AVR_ARCH__=100
+    LIBRARIES += Wire
+endif
+
+# Emulator library files
+EMU_FILES := $(wildcard emu/alt_arduino/*.cpp) \
+             $(wildcard emu/alt_gcc/utils/*.cpp) \
+             $(wildcard emu/gcc/util/*.cpp) \
+             $(wildcard emu/arduino/*.cpp) \
+             $(wildcard emu/core/*.cpp) \
+
+MODULES_FILES := $(wildcard modules/*/*.cpp)
+EMU_SRC_FILES = $(EMU_FILES) $(MODULES_FILES)
+EMU_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(EMU_SRC_FILES))))
+
+# Emulator executable files
+MAIN_FILES := $(wildcard emu/main/*.cpp)
 MAIN_SRC_FILES = $(MAIN_FILES)
+MAIN_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(MAIN_SRC_FILES))))
 
+# Project files (include requires libraries and project code)
+PROJECT_FILES := $(wildcard projects/$(PROJECT)/*.cpp) \
+                 $(wildcard projects/$(PROJECT)/*.ino) \
+                 boards/$(PROJECT).cpp
+LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/*.cpp)) \
+                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*.cpp)) \
+                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*/*.cpp)) \
+
+PROJECT_SRC_FILES = $(PROJECT_FILES) $(LIBRARY_FILES)
+
+# Looking for installed SDL2 library
 SDL := $(shell sdl2-config --cflags --libs)
 
 # set up compiler and options
@@ -60,9 +83,11 @@ export CROSS_COMPILE
 
 .SUFFIXES: .c .cpp .ino
 
+# Compile c as c++ because we use overloaded C++ operators.
 $(BLD)/%.o: %.c
 	mkdir -p $(dir $@)
-	$(CC) $(CCFLAGS) -c $< -o $@
+	$(CXX) -std=c++11 $(CCFLAGS) -c $< -o $@
+#	$(CC) $(CCFLAGS) -c $< -o $@
 
 $(BLD)/%.o: %.cpp
 	mkdir -p $(dir $@)
@@ -72,21 +97,21 @@ $(BLD)/%.o: %.ino
 	mkdir -p $(dir $@)
 	$(CXX) -std=c++11 $(CCFLAGS) -x c++ -c $< -o $@
 
-INCLUDES += -Iemu \
-        $(addprefix -Iprojects/libraries/, $(LIBRARIES)) \
-        $(addsuffix /src,$(addprefix -Iprojects/libraries/, $(LIBRARIES))) \
+INCLUDES += -Iemu/alt_arduino -Iemu/arduino \
+            -Iemu/alt_gcc -Iemu/gcc \
+            -Imodules \
+            -Iemu \
+            -Iemu/mcu \
+            $(addprefix -Ilibraries/, $(LIBRARIES)) \
+            $(addsuffix /src,$(addprefix -Ilibraries/, $(LIBRARIES))) \
 
 CCFLAGS += -fPIC -g $(INCLUDES) -Wall -Werror -DF_CPU=16000000 -pthread \
          $(SDL)
 
-ifeq ($(MCU),attiny85)
-    CCFLAGS += -D__AVR_ATtiny85__
-endif
+# -nostdinc
 
 PROJECT_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(PROJECT_SRC_FILES))))
 
-EMU_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(EMU_SRC_FILES))))
-MAIN_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(MAIN_SRC_FILES))))
 
 .PHONY: clean all executable run
 

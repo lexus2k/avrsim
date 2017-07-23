@@ -17,24 +17,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _AVR_IO_H_
-#define _AVR_IO_H_
+#ifndef _SFR_DEFS_H_
+#define _SFR_DEFS_H_
 
-#include <core/register.h>
-#include <core/register16.h>
-#include <core/mcupins.h>
-#include <avr/sfr_defs.h>
 
-extern std::map<uint8_t, std::function <void ()>> g_vectors;
+#define _BV(bit) (1 << (bit))
+#define _SFR_BYTE(sfr) sfr
+#define _SFR_MEM8(mem_addr) (mem_addr)
 
-#if defined (__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
-#  include <mcu/atmega328p.h>
-#elif defined (__AVR_ATmega168__)
-#  include <mcu/atmega168.h>
-#elif defined (__AVR_ATtiny85__)
-#  include <mcu/attiny85.h>
-#else
-#  error "device type is not supported"
+
 #endif
-
-#endif /* _AVR_IO_H_ */

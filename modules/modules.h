@@ -17,12 +17,16 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _SFR_DEFS_H_
-#define _SFR_DEFS_H_
+#ifndef _MODULES_H_
+#define _MODULES_H_
+
+#include <core/mcupins.h>
+#include <ssd1306/ssd1306_i2c.h>
+#include <button/digital_button.h>
+
+#define SSD1306_I2C      Cssd1306i2c
+#define DIGITAL_BUTTON   CDigitalButton
+
+#endif /* _MODULES_H_ */
 
 
-#define _BV(bit) (1 << (bit))
-#define _SFR_BYTE(sfr) sfr
-
-
-#endif

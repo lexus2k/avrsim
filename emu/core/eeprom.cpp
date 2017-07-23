@@ -17,7 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "eeprom.h"
+#include <avr/eeprom.h>
 #include <string.h>
 
 uint8_t eeprom_read_byte (const uint8_t *__p)

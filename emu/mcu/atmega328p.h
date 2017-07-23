@@ -17,8 +17,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _ATTINY85_H_
-#define _ATTINY85_H_ 1
+#ifndef _ATMEGA328P_H_
+#define _ATMEGA328P_H_ 1
 
 #include <core/register.h>
 #include <core/register16.h>
@@ -138,9 +138,6 @@ static const uint8_t A3 = 9;
 
 #define analogPinToChannel(p)   ( (p) < 6 ? (p) : (p) - 6 )
 
-#define TCCR1A GTCCR
-
-
 #define digitalPinToPort(P)     (2)
 #define digitalPinToBitMask(P)  (1<<P)
 #define portOutputRegister(P)   PORTB
@@ -239,10 +236,10 @@ void pcint0Interrupt(uint8_t bit, uint8_t level)
     {
         return;
     }
-    if ((GIMSK & (1<<PCIE)) == 0)
-    {
-        return;
-    }
+//    if ((GIMSK & (1<<PCIE)) == 0)
+//    {
+//        return;
+//    }
     if ((PCMSK & (1<<bit)) == 0)
     {
         return;
@@ -268,4 +265,4 @@ void initMcu()
 #endif
 
 
-#endif /* _ATTINY85_H_ */
+#endif /* _ATMEGA328P_H_ */

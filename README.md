@@ -26,17 +26,21 @@ Only C++ is supported.
 
  * Linux
 
-4. Structure
+4. Sources structure
 
- * emu/avr      - Fake AVR stdlib headers
- * emu/core     - Simulator core, implementing main Arduino/AVR
-                  functions
- * emu/mcu      - cpu specific files (reworked avr files)
- * emu/modules  - Modules to connect to your mcu configuration: display, buttons
- * emu/utils    - Some headers with avrlib specific functions
+ * emu          - Emulator engine files
+   * emu/alt_arduino - alternate implementation of Arduino includes
+   * emu/arduino     - original Arduino includes (or with minimal rework)
+   * emu/alt_gcc     - alternate implementation of AVR gcc includes
+   * emu/gcc         - original AVR gcc includes (or with minimal rework) - look for [avrsim] tag)
+   * emu/core        - Simulator core, implementing main Arduino/AVR functions for Desktop Linux
+   * emu/mcu         - cpu specific files (implementation for uC)
+ * modules  - Modules to connect to your mcu configuration: display, buttons
+   * modules/ssd1306 module - emulates 128x64 ssd1306 OLED LCD display
+   * modules/button module  - emulates digital button for AVR
  * boards       - contains hardware board description in C++ for each project
  * projects     - contains original project sources
- * projects/libraries - contains libraries used by the projects
+ * libraries    - contains libraries used by the projects
 
 5. Usage
 
@@ -50,10 +54,14 @@ Only C++ is supported.
  * make PROJECT=lode_runner run
 
  If you want to place your project:
- * put all libs, projects requires to projects/libraries
+ * put all libs, projects requires to libraries
  * put your project files to projects/<name> folder
  * create board configuration for your project: boards/<name>.cpp.
-    refer to lcd_arkanoid.cpp as example.
+    refer to arkanoid.ino as example.
  * run: make PROJECT=<name> LIBRARIES=<list> run
+
+Important! Don't forget to execute git command after cloning AVRSIM project:
+ * git submodule init
+ * git submodule update
 
 That's it

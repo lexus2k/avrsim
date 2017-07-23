@@ -17,16 +17,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef _MODULES_H_
-#define _MODULES_H_
+#ifndef _NONISO_H_
+#define _NONISO_H_
 
-#include <core/mcupins.h>
-#include "modules/ssd1306/ssd1306_i2c.h"
-#include "modules/button/digital_button.h"
+char *utoa(unsigned int num, char *str, int radix);
+char* itoa(int num, char* str, int base);
+char *dtostrf (double val, signed char width, unsigned char prec, char *sout);
 
-#define SSD1306_I2C      Cssd1306i2c
-#define DIGITAL_BUTTON   CDigitalButton
+#define ltoa itoa
+#define ultoa utoa
 
-#endif /* _MODULES_H_ */
-
-
+#endif /* _NONISO_H_ */
