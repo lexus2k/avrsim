@@ -59,9 +59,9 @@ MAIN_OBJ_FILES = $(addprefix $(BLD)/, $(addsuffix .o, $(basename $(MAIN_SRC_FILE
 PROJECT_FILES := $(wildcard projects/$(PROJECT)/*.cpp) \
                  $(wildcard projects/$(PROJECT)/*.ino) \
                  boards/$(PROJECT).cpp
-LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/*.cpp)) \
-                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*.cpp)) \
-                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*/*.cpp)) \
+LIBRARY_FILES := $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/*.cpp libraries/$(lib)/*.c)) \
+                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*.cpp libraries/$(lib)/src/*.c)) \
+                 $(foreach lib, $(LIBRARIES), $(wildcard libraries/$(lib)/src/*/*.cpp libraries/$(lib)/src/*/*.c)) \
 
 PROJECT_SRC_FILES = $(PROJECT_FILES) $(LIBRARY_FILES)
 
